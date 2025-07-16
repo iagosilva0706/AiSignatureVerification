@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
 from PIL import Image
@@ -6,9 +5,23 @@ import numpy as np
 import tensorflow as tf
 import os
 import uuid
+import requests
 
-# Load model once
-model = tf.keras.models.load_model('model.h5')
+def download_model():
+    url = 'https://drive.google.com/file/d/1O6F8-dcxAe2jwjrBV6jZLqmKFw8WtaHl/view?usp=drive_link'  # <-- Replace this with your actual direct download link
+    local_filename = 'model.h5'
+
+    if not os.path.exists(local_filename):
+        print("Downloading model...")
+        with open(local_filename, 'wb') as f:
+            f.write(requests.get(url).content)
+        print("Model downloaded.")
+
+    return local_filename
+
+# Download and load model once
+model_path = download_model()
+model = tf.keras.models.load_model(model_path)
 
 # Initialize FastAPI
 app = FastAPI()
