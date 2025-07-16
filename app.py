@@ -7,18 +7,17 @@ from PIL import Image
 import numpy as np
 import tensorflow as tf
 import uuid
-import requests
+import gdown
 
 
 def download_model():
-    url = 'https://drive.google.com/file/d/1O6F8-dcxAe2jwjrBV6jZLqmKFw8WtaHl/view?usp=drive_link'  # Replace with actual direct download URL
+    url = 'https://drive.google.com/file/d/1O6F8-dcxAe2jwjrBV6jZLqmKFw8WtaHl/view?usp=drive_link'  # Replace with actual Google Drive file ID
     local_filename = 'model.h5'
 
     if not os.path.exists(local_filename):
-        print("Downloading model...")
-        with open(local_filename, 'wb') as f:
-            f.write(requests.get(url).content)
-        print("Model downloaded.")
+        print("Downloading model from Google Drive...")
+        gdown.download(url, local_filename, quiet=False)
+        print(f"Model downloaded. File size: {os.path.getsize(local_filename)} bytes.")
 
     return local_filename
 
