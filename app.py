@@ -12,7 +12,6 @@ import gdown
 from keras.saving import register_keras_serializable
 from memory_profiler import profile  # Added for memory profiling
 
-# Register custom function
 @register_keras_serializable()
 def euclidean_distance(vects):
     x, y = vects
@@ -27,7 +26,6 @@ def download_model():
         gdown.download(url, local_filename, quiet=False)
         file_size = os.path.getsize(local_filename)
         print(f"Model downloaded. File size: {file_size} bytes.")
-
         if file_size < 10000:
             raise RuntimeError(f"Downloaded model file too small: {file_size} bytes. Download likely failed.")
 
@@ -65,9 +63,10 @@ def save_temp_file(file: UploadFile):
 
 def preprocess(image_path):
     image = Image.open(image_path).convert('L')
-    image = image.resize((220, 155), Image.LANCZOS)  # Fixed deprecated attribute here
+    # Fix: swap width and height to match model expected shape
+    image = image.resize((155, 220), Image.LANCZOS)
     image = np.array(image).astype(np.float32) / 255.0
-    image = np.expand_dims(image, axis=(0, -1))  # shape: (1, 220, 155, 1)
+    image = np.expand_dims(image, axis=(0, -1))  # (1, 220, 155, 1)
     print(f"Preprocessed image shape: {image.shape}, dtype: {image.dtype}")
     print(f"Preprocessed image min: {image.min()}, max: {image.max()}, mean: {image.mean()}")
     return image
