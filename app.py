@@ -10,7 +10,7 @@ import uuid
 import gdown
 
 def download_model():
-    url = 'https://drive.google.com/file/d/1O6F8-dcxAe2jwjrBV6jZLqmKFw8WtaHl/view?usp=sharing'  # Replace with actual Google Drive file ID
+    url = 'https://drive.google.com/file/d/1O6F8-dcxAe2jwjrBV6jZLqmKFw8WtaHl'  # Replace with actual Google Drive file ID
     local_filename = 'model.h5'
 
     if not os.path.exists(local_filename):
