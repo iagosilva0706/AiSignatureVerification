@@ -12,7 +12,6 @@ import gdown
 from keras.saving import register_keras_serializable
 from memory_profiler import profile  # Added for memory profiling
 
-# Register custom function
 @register_keras_serializable()
 def euclidean_distance(vects):
     x, y = vects
@@ -57,12 +56,13 @@ def save_temp_file(file: UploadFile):
 
 def preprocess(image_path):
     image = Image.open(image_path).convert('L')
-    image = image.resize((155, 220))  # Resize to (width, height)
-    image = np.array(image).T  # Transpose to (220, 155) because model expects this orientation
-    image = image / 255.0
-    image = np.expand_dims(image, axis=-1)  # Add channel dim: (220, 155, 1)
-    image = np.expand_dims(image, axis=0)   # Add batch dim: (1, 220, 155, 1)
-    return image
+    image = image.resize((155, 220))  # width=155, height=220
+    image_np = np.array(image)
+    image_np = image_np.T  # transpose to (220, 155) to match model input
+    image_np = image_np / 255.0
+    image_np = np.expand_dims(image_np, axis=-1)  # add channel dimension
+    image_np = np.expand_dims(image_np, axis=0)   # add batch dimension
+    return image_np
 
 @profile
 def predict_similarity(image1_path, image2_path):  # Profiled function
