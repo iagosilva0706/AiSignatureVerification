@@ -12,6 +12,7 @@ import gdown
 from keras.saving import register_keras_serializable
 from memory_profiler import profile  # Added for memory profiling
 
+# Register custom function
 @register_keras_serializable()
 def euclidean_distance(vects):
     x, y = vects
@@ -37,39 +38,14 @@ model = tf.keras.models.load_model(model_path, custom_objects={'euclidean_distan
 
 app = FastAPI()
 
-async def save_temp_file(file: UploadFile):
-    temp_filename = f"/tmp/{uuid.uuid4()}.png"
-    with open(temp_filename, "wb") as f:
-        f.write(await file.read())
-    return temp_filename
-
-def preprocess(image_path):
-    image = Image.open(image_path).convert('L')
-    image = image.resize((220, 155))
-    image = np.array(image) / 255.0
-    image = np.expand_dims(image, axis=-1)  # Add channel dim
-    image = np.expand_dims(image, axis=0)   # Add batch dim
-    print(f"Preprocessed image shape: {image.shape}, dtype: {image.dtype}")
-    return image
-
-@profile
-def predict_similarity(image1_path, image2_path):
-    img1 = preprocess(image1_path)
-    img2 = preprocess(image2_path)
-    prediction = model.predict([img1, img2])
-    print(f"Raw model prediction output: {prediction}")
-    return float(prediction[0][0])
-
 @app.post("/signature-verify/")
-async def signature_verify(signature_image: UploadFile = File(...), database_image: UploadFile = File(...)):
+def signature_verify(signature_image: UploadFile = File(...), database_image: UploadFile = File(...)):
     try:
-        temp_sig = await save_temp_file(signature_image)
-        temp_db = await save_temp_file(database_image)
+        temp_sig = save_temp_file(signature_image)
+        temp_db = save_temp_file(database_image)
         score = predict_similarity(temp_sig, temp_db)
-
-        if not np.isfinite(score):
-            raise ValueError(f"Invalid prediction score: {score}")
-
+        if score is None or np.isnan(score) or np.isinf(score):
+            raise ValueError("Invalid prediction score")
         verdict = "match" if score >= 0.9 else ("similar" if score >= 0.7 else "no_match")
         return JSONResponse({
             "score": round(float(score) * 100, 2),
@@ -80,4 +56,24 @@ async def signature_verify(signature_image: UploadFile = File(...), database_ima
             "score": None,
             "result": "error",
             "detail": str(e)
-        }, status_code=500)
+        })
+
+def save_temp_file(file: UploadFile):
+    temp_filename = f"/tmp/{uuid.uuid4()}.png"
+    with open(temp_filename, "wb") as f:
+        f.write(file.file.read())
+    return temp_filename
+
+def preprocess(image_path):
+    image = Image.open(image_path).convert('L')  # grayscale
+    image = image.resize((220, 155))             # width=220, height=155
+    image = np.array(image) / 255.0               # normalize pixel values
+    image = image.reshape((1, 220, 155, 1))       # reshape to (batch, height, width, channels)
+    return image.astype(np.float32)               # ensure dtype float32
+
+@profile
+def predict_similarity(image1_path, image2_path):  # Profiled function
+    img1 = preprocess(image1_path)
+    img2 = preprocess(image2_path)
+    prediction = model.predict([img1, img2])
+    return float(prediction[0][0])
