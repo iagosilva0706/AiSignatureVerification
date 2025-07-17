@@ -57,9 +57,11 @@ def save_temp_file(file: UploadFile):
 
 def preprocess(image_path):
     image = Image.open(image_path).convert('L')
-    image = image.resize((220, 155))
-    image = np.array(image) / 255.0
-    image = np.expand_dims(image, axis=(0, -1))
+    image = image.resize((155, 220))  # Resize to (width, height)
+    image = np.array(image).T  # Transpose to (220, 155) as model expects
+    image = image / 255.0
+    image = np.expand_dims(image, axis=-1)  # Add channel dim: (220, 155, 1)
+    image = np.expand_dims(image, axis=0)   # Add batch dim: (1, 220, 155, 1)
     return image
 
 @profile
