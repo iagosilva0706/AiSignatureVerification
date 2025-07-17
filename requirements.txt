@@ -4,3 +4,4 @@ pillow
 numpy
 tensorflow
 gdown
+memory_profiler
