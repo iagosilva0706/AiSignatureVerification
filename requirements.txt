@@ -4,4 +4,3 @@ pillow
 numpy
 tensorflow
 gdown
-pip install python-multipart
