@@ -25,8 +25,15 @@ def download_model():
     return local_filename
 
 # Download and load model once
+from keras.saving import register_keras_serializable
+
+@register_keras_serializable()
+def euclidean_distance(y_true, y_pred):
+    return tf.sqrt(tf.reduce_sum(tf.square(y_true - y_pred), axis=-1))
+
 model_path = download_model()
 model = tf.keras.models.load_model(model_path)
+
 
 # Initialize FastAPI
 app = FastAPI()
