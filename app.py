@@ -10,8 +10,7 @@ import tensorflow as tf
 import uuid
 import gdown
 from keras.saving import register_keras_serializable
-from memory_profiler import profile
-from math import isnan, isinf
+from memory_profiler import profile  # Added for memory profiling
 
 # Register custom function
 @register_keras_serializable()
@@ -44,12 +43,10 @@ def signature_verify(signature_image: UploadFile = File(...), database_image: Up
     temp_sig = save_temp_file(signature_image)
     temp_db = save_temp_file(database_image)
     score = predict_similarity(temp_sig, temp_db)
-    
-    # Validate score before returning JSON
-    if isnan(score) or isinf(score):
-        return JSONResponse(status_code=500, content={"error": "Invalid prediction score"})
-    
     verdict = "match" if score >= 0.9 else ("similar" if score >= 0.7 else "no_match")
+    # Handle possible NaN or infinite scores safely for JSON serialization
+    if not np.isfinite(score):
+        return JSONResponse({"score": None, "result": "error"})
     return JSONResponse({
         "score": round(float(score) * 100, 2),
         "result": verdict
@@ -63,13 +60,13 @@ def save_temp_file(file: UploadFile):
 
 def preprocess(image_path):
     image = Image.open(image_path).convert('L')
-    image = image.resize((220, 155))
+    image = image.resize((155, 220))  # FIXED: width=155, height=220 to match model input shape
     image = np.array(image) / 255.0
-    image = np.expand_dims(image, axis=(0, -1))  # (1, 220, 155, 1)
+    image = np.expand_dims(image, axis=(0, -1))  # shape -> (1, 220, 155, 1)
     return image
 
 @profile
-def predict_similarity(image1_path, image2_path):
+def predict_similarity(image1_path, image2_path):  # Profiled function
     img1 = preprocess(image1_path)
     img2 = preprocess(image2_path)
     prediction = model.predict([img1, img2])
