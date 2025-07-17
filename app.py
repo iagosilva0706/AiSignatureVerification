@@ -70,7 +70,7 @@ def save_temp_file(file: UploadFile):
 
 def preprocess(image_path):
     image = Image.open(image_path).convert('L')
-    image = image.resize((220, 155))  # Model expects width=220, height=155
+    image = image.resize((155, 220))  # width=155, height=220 (RIGHT)
     image = np.array(image) / 255.0
     # Expand dims to (1, height, width, 1)
     image = np.expand_dims(image, axis=0)
