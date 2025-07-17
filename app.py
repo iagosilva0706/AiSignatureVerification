@@ -12,6 +12,7 @@ import gdown
 from keras.saving import register_keras_serializable
 from memory_profiler import profile  # Added for memory profiling
 
+# Register custom function
 @register_keras_serializable()
 def euclidean_distance(vects):
     x, y = vects
@@ -35,6 +36,8 @@ def download_model():
 model_path = download_model()
 model = tf.keras.models.load_model(model_path, custom_objects={'euclidean_distance': euclidean_distance})
 
+print("Model input shape:", model.input_shape)  # Debug
+
 app = FastAPI()
 
 @app.post("/signature-verify/")
@@ -56,12 +59,12 @@ def save_temp_file(file: UploadFile):
 
 def preprocess(image_path):
     image = Image.open(image_path).convert('L')
-    image = image.resize((155, 220))  # width=155, height=220
-    image_np = np.array(image)
-    image_np = image_np.T  # transpose to (220, 155) to match model input
-    image_np = image_np / 255.0
-    image_np = np.expand_dims(image_np, axis=-1)  # add channel dimension
-    image_np = np.expand_dims(image_np, axis=0)   # add batch dimension
+    image = image.resize((155, 220))  # width=155, height=220 as expected by model
+    image_np = np.array(image)        # shape (220, 155)
+    image_np = image_np / 255.0       # normalize
+    image_np = np.expand_dims(image_np, axis=-1)  # add channel dimension -> (220, 155, 1)
+    image_np = np.expand_dims(image_np, axis=0)   # add batch dimension -> (1, 220, 155, 1)
+    print("Preprocessed image shape:", image_np.shape)  # Debug
     return image_np
 
 @profile
