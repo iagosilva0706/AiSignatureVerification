@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Disable GPU before TensorFlow import
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Disable GPU before importing TensorFlow
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 from fastapi import FastAPI, UploadFile, File
@@ -10,9 +10,8 @@ import tensorflow as tf
 import uuid
 import gdown
 from keras.saving import register_keras_serializable
-from memory_profiler import profile
+from memory_profiler import profile  # Added for memory profiling
 
-# Register custom function for loading model
 @register_keras_serializable()
 def euclidean_distance(vects):
     x, y = vects
@@ -30,6 +29,7 @@ def download_model():
 
         if file_size < 10000:
             raise RuntimeError(f"Downloaded model file too small: {file_size} bytes. Download likely failed.")
+
     return local_filename
 
 model_path = download_model()
@@ -37,12 +37,39 @@ model = tf.keras.models.load_model(model_path, custom_objects={'euclidean_distan
 
 app = FastAPI()
 
+async def save_temp_file(file: UploadFile):
+    temp_filename = f"/tmp/{uuid.uuid4()}.png"
+    with open(temp_filename, "wb") as f:
+        f.write(await file.read())
+    return temp_filename
+
+def preprocess(image_path):
+    image = Image.open(image_path).convert('L')
+    image = image.resize((220, 155))
+    image = np.array(image) / 255.0
+    image = np.expand_dims(image, axis=-1)  # Add channel dim
+    image = np.expand_dims(image, axis=0)   # Add batch dim
+    print(f"Preprocessed image shape: {image.shape}, dtype: {image.dtype}")
+    return image
+
+@profile
+def predict_similarity(image1_path, image2_path):
+    img1 = preprocess(image1_path)
+    img2 = preprocess(image2_path)
+    prediction = model.predict([img1, img2])
+    print(f"Raw model prediction output: {prediction}")
+    return float(prediction[0][0])
+
 @app.post("/signature-verify/")
 async def signature_verify(signature_image: UploadFile = File(...), database_image: UploadFile = File(...)):
     try:
         temp_sig = await save_temp_file(signature_image)
         temp_db = await save_temp_file(database_image)
         score = predict_similarity(temp_sig, temp_db)
+
+        if not np.isfinite(score):
+            raise ValueError(f"Invalid prediction score: {score}")
+
         verdict = "match" if score >= 0.9 else ("similar" if score >= 0.7 else "no_match")
         return JSONResponse({
             "score": round(float(score) * 100, 2),
@@ -54,26 +81,3 @@ async def signature_verify(signature_image: UploadFile = File(...), database_ima
             "result": "error",
             "detail": str(e)
         }, status_code=500)
-
-async def save_temp_file(file: UploadFile):
-    temp_filename = f"/tmp/{uuid.uuid4()}.png"
-    with open(temp_filename, "wb") as f:
-        content = await file.read()
-        f.write(content)
-    return temp_filename
-
-def preprocess(image_path):
-    image = Image.open(image_path).convert('L')
-    # Resize to (width=155, height=220) to match model input (220,155,1)
-    image = image.resize((155, 220))
-    image = np.array(image) / 255.0
-    image = np.expand_dims(image, axis=-1)  # Add channel dim -> (220, 155, 1)
-    image = np.expand_dims(image, axis=0)   # Add batch dim -> (1, 220, 155, 1)
-    return image.astype(np.float32)
-
-@profile
-def predict_similarity(image1_path, image2_path):
-    img1 = preprocess(image1_path)
-    img2 = preprocess(image2_path)
-    prediction = model.predict([img1, img2])
-    return float(prediction[0][0])
