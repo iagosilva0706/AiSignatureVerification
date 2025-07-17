@@ -12,6 +12,7 @@ import gdown
 from keras.saving import register_keras_serializable
 from memory_profiler import profile  # Added for memory profiling
 
+# Register custom function
 @register_keras_serializable()
 def euclidean_distance(vects):
     x, y = vects
@@ -41,21 +42,20 @@ app = FastAPI()
 def signature_verify(signature_image: UploadFile = File(...), database_image: UploadFile = File(...)):
     temp_sig = save_temp_file(signature_image)
     temp_db = save_temp_file(database_image)
-    score = predict_similarity(temp_sig, temp_db)
     try:
-        score_val = float(score)
-        if not (0 <= score_val <= 1):
-            raise ValueError("Score out of expected range")
+        score = predict_similarity(temp_sig, temp_db)
+        verdict = "match" if score >= 0.9 else ("similar" if score >= 0.7 else "no_match")
+        return JSONResponse({
+            "score": round(float(score) * 100, 2),
+            "result": verdict
+        })
     except Exception as e:
-        print(f"Error processing score: {e}, raw score: {score}")
-        score_val = None
-
-    verdict = "match" if score_val is not None and score_val >= 0.9 else ("similar" if score_val is not None and score_val >= 0.7 else "no_match" if score_val is not None else "error")
-
-    return JSONResponse({
-        "score": round(score_val * 100, 2) if score_val is not None else None,
-        "result": verdict
-    })
+        # Log the error properly if you have logging
+        return JSONResponse({
+            "score": None,
+            "result": "error",
+            "detail": str(e)
+        })
 
 def save_temp_file(file: UploadFile):
     temp_filename = f"/tmp/{uuid.uuid4()}.png"
@@ -65,22 +65,16 @@ def save_temp_file(file: UploadFile):
 
 def preprocess(image_path):
     image = Image.open(image_path).convert('L')
-    image = image.resize((220, 155))
+    image = image.resize((155, 220))  # width=155, height=220 — fix to match model input shape
     image = np.array(image) / 255.0
-    image = np.expand_dims(image, axis=-1)  # Add channel last dimension
-    image = np.expand_dims(image, axis=0)   # Add batch dimension
+    image = np.expand_dims(image, axis=-1)  # add channel dimension
+    image = np.expand_dims(image, axis=0)   # add batch dimension
+    print(f"Preprocessed image shape: {image.shape}, dtype: {image.dtype}")  # Debug print
     return image
 
 @profile
 def predict_similarity(image1_path, image2_path):  # Profiled function
     img1 = preprocess(image1_path)
     img2 = preprocess(image2_path)
-
-    print(f"Preprocessed img1 shape: {img1.shape}, dtype: {img1.dtype}")
-    print(f"Preprocessed img2 shape: {img2.shape}, dtype: {img2.dtype}")
-
     prediction = model.predict([img1, img2])
-
-    print(f"Raw prediction output: {prediction}")
-
     return float(prediction[0][0])
