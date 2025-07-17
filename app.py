@@ -65,7 +65,7 @@ def save_temp_file(file: UploadFile):
 
 def preprocess(image_path):
     image = Image.open(image_path).convert('L')
-    image = image.resize((220, 155), Image.ANTIALIAS)
+    image = image.resize((220, 155), Image.LANCZOS)  # Fixed deprecated attribute here
     image = np.array(image).astype(np.float32) / 255.0
     image = np.expand_dims(image, axis=(0, -1))  # shape: (1, 220, 155, 1)
     print(f"Preprocessed image shape: {image.shape}, dtype: {image.dtype}")
