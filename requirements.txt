@@ -2,6 +2,7 @@ fastapi
 uvicorn
 pillow
 numpy
-tensorflow
+tensorflow-cpu
 gdown
+python-multipart
 memory_profiler
