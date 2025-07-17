@@ -1,4 +1,5 @@
 import os
+import math
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Disable GPU before importing TensorFlow
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -38,25 +39,6 @@ model = tf.keras.models.load_model(model_path, custom_objects={'euclidean_distan
 
 app = FastAPI()
 
-@app.post("/signature-verify/")
-def signature_verify(signature_image: UploadFile = File(...), database_image: UploadFile = File(...)):
-    temp_sig = save_temp_file(signature_image)
-    temp_db = save_temp_file(database_image)
-    try:
-        score = predict_similarity(temp_sig, temp_db)
-        verdict = "match" if score >= 0.9 else ("similar" if score >= 0.7 else "no_match")
-        return JSONResponse({
-            "score": round(float(score) * 100, 2),
-            "result": verdict
-        })
-    except Exception as e:
-        # Log the error properly if you have logging
-        return JSONResponse({
-            "score": None,
-            "result": "error",
-            "detail": str(e)
-        })
-
 def save_temp_file(file: UploadFile):
     temp_filename = f"/tmp/{uuid.uuid4()}.png"
     with open(temp_filename, "wb") as f:
@@ -65,16 +47,39 @@ def save_temp_file(file: UploadFile):
 
 def preprocess(image_path):
     image = Image.open(image_path).convert('L')
-    image = image.resize((155, 220))  # width=155, height=220 — fix to match model input shape
+    image = image.resize((220, 155))  # width=220, height=155 as per model input
     image = np.array(image) / 255.0
-    image = np.expand_dims(image, axis=-1)  # add channel dimension
-    image = np.expand_dims(image, axis=0)   # add batch dimension
-    print(f"Preprocessed image shape: {image.shape}, dtype: {image.dtype}")  # Debug print
-    return image
+    # Expand dims to (1, 220, 155, 1)
+    image = np.expand_dims(image, axis=-1)  # add channel dim -> (220, 155, 1)
+    image = np.expand_dims(image, axis=0)   # add batch dim -> (1, 220, 155, 1)
+    return image.astype(np.float32)
 
 @profile
-def predict_similarity(image1_path, image2_path):  # Profiled function
+def predict_similarity(image1_path, image2_path):
     img1 = preprocess(image1_path)
     img2 = preprocess(image2_path)
     prediction = model.predict([img1, img2])
-    return float(prediction[0][0])
+    score = float(prediction[0][0])
+    if not math.isfinite(score):
+        score = 0.0  # fallback if invalid
+    return score
+
+@app.post("/signature-verify/")
+def signature_verify(signature_image: UploadFile = File(...), database_image: UploadFile = File(...)):
+    temp_sig = save_temp_file(signature_image)
+    temp_db = save_temp_file(database_image)
+    try:
+        score = predict_similarity(temp_sig, temp_db)
+        if not math.isfinite(score):
+            raise ValueError(f"Model returned non-finite score: {score}")
+        verdict = "match" if score >= 0.9 else ("similar" if score >= 0.7 else "no_match")
+        return JSONResponse({
+            "score": round(score * 100, 2),
+            "result": verdict
+        })
+    except Exception as e:
+        return JSONResponse({
+            "score": None,
+            "result": "error",
+            "detail": str(e)
+        })
