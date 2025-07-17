@@ -8,6 +8,13 @@ import numpy as np
 import tensorflow as tf
 import uuid
 import gdown
+from keras.saving import register_keras_serializable
+
+# Register custom function
+@register_keras_serializable()
+def euclidean_distance(vects):
+    x, y = vects
+    return tf.sqrt(tf.reduce_sum(tf.square(x - y), axis=1, keepdims=True))
 
 def download_model():
     url = 'https://drive.google.com/uc?id=1O6F8-dcxAe2jwjrBV6jZLqmKFw8WtaHl'  # Replace with actual Google Drive file ID
@@ -25,15 +32,8 @@ def download_model():
     return local_filename
 
 # Download and load model once
-from keras.saving import register_keras_serializable
-
-@register_keras_serializable()
-def euclidean_distance(y_true, y_pred):
-    return tf.sqrt(tf.reduce_sum(tf.square(y_true - y_pred), axis=-1))
-
 model_path = download_model()
-model = tf.keras.models.load_model(model_path)
-
+model = tf.keras.models.load_model(model_path, custom_objects={'euclidean_distance': euclidean_distance})
 
 # Initialize FastAPI
 app = FastAPI()
